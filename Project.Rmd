@@ -1,0 +1,114 @@
+---
+title: "Predicting with R"
+author: "Mandar Gujrathi"
+date: "July 16, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache=TRUE)
+```
+
+## Synopsis
+The goal of this project is to predict the manner in which the subjects have done the exercise. We have two sets provided, training and testing. There is a "classe" variable in the training set which will be used with any of the other variables to train the model. We will later use the prediction model to predict 20 different test cases.
+
+## Introduction
+In this stage, we will be reading the training data and focusing our predictor variables to be the accelerometer data on the belt, forearm and dumbell in x, y and z directions. We will be chosing only those cases where we have complete information available. No NaN's 
+```{r}
+ds <- read.csv('C:/class9/R/Module8/training.csv',header = TRUE)
+ds1 <- ds[,grep("^accel", colnames(ds))]
+ds2<- ds1[complete.cases(ds1), ]
+```
+
+
+# Data Analysis
+Given that we have a number of variables, lets check the correlation between each of them. 
+```{r}
+library(corrplot)
+corrplot(cor(ds2))
+```
+
+As we could see there are some variables which have a strong correlation, e.g., accel belt in y and in z directions. 
+
+# Split the data set 
+Let us now work to build a model on the training set. We split this set into training (75%) and testing (25%). Model will be built on this training set and errors will be decided on the test set. 
+
+```{r}
+library(caret)
+ds2id <- which(complete.cases(ds1))
+ds2$class <- ds$classe[ds2id]
+trainIndex <- createDataPartition(ds2$class, p = 0.75, list= FALSE)
+ds_train <- ds2[trainIndex,]
+ds_test <- ds2[-trainIndex,]
+actclass <- ds_test$class
+```
+
+# Fit models.
+We select two models to fit with one with tree bag method and other with Random forest. 
+
+```{r, cache = TRUE, message = FALSE}
+
+modelFit <- train(class ~., method = "treebag", data = ds_train)
+modelFit1 <- train(class ~., method = "rf", data = ds_train)
+```
+
+# Predict the models on the test set 
+Using the predict function, we now see the performance of both the models on the test set. 
+
+```{r}
+predm <- predict(modelFit, ds_test[,1:12])
+predrf <- predict(modelFit1, ds_test[,1:12])
+```
+
+# Out of Bag Error.
+```{r}
+errorm <- sum(predm != ds_test$class)/length(predm)
+errorrf <- sum(predrf != ds_test$class)/length(predrf)
+print(paste0("The Out of Bag Error for Tree Bag method is about ", errorm*100, "%"))
+print(paste0("The Out of Bag Error for Random Forest method is about ", errorrf*100, "%"))
+```
+ It is seen that the out of bag error for tree bag method is slightly greater than the random forest method. 
+
+
+# Test the models on the actual testing set. 
+
+Let build the same models on the actual training set. 
+
+```{r, cache = TRUE}
+modelFita <- train(class ~., method = "treebag", data = ds2)
+modelFitb <- train(class ~., method = "rf", data = ds2)
+modelFitr <- train(class ~., method = "rpart", data = ds2)
+```
+
+# Plot the models
+
+```{r}
+plot(modelFitr$finalModel, main = 'Classification Tree')
+text(modelFitr$finalModel)
+
+```
+```{r}
+plot(modelFitb$finalModel, main = 'Random Forest method')
+```
+
+# Predict on test set. 
+
+Load the testing set and predict on that set using the models
+
+
+```{r}
+testing <-  read.csv('C:/class9/R/Module8/testing.csv',header = TRUE)
+test <- testing[,grep("^accel", colnames(testing))]
+testfit  <- predict(modelFita,test)
+testfit1 <- predict(modelFitb,test)
+```
+
+Check the error between the results of the two models. 
+
+```{r}
+modelcom <- sum(testfit != testfit1)/length(testfit)
+print(paste0("The prediction difference between Tree bag and Random Forest is about ", modelcom*100, "%"))
+```
+
+
